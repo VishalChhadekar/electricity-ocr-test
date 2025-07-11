@@ -1,0 +1,42 @@
+{
+    "data": {
+        "invoiceNumber": {
+            "raw": "202404237209821267",
+            "parsed": "202404237209821267",
+            "confidence": 0.881
+        },
+        "presentReadingDate": {
+            "raw": "20-04-2024",
+            "parsed": "2024-04-20",
+            "confidence": 0.881
+        },
+        "previousReadingDate": {
+            "raw": "15-MAR-24",
+            "parsed": "2024-03-15",
+            "confidence": 0.842
+        },
+        "meterReadings": [
+            {
+                "parsed": {
+                    "meterNumber": {
+                        "raw": "U326173",
+                        "parsed": "U326173",
+                        "confidence": 0.831
+                    },
+                    "unitsConsumed": {
+                        "raw": "536",
+                        "parsed": 536,
+                        "confidence": 0.831
+                    }
+                },
+                "confidence": 0.831
+            }
+        ]
+    },
+    "error": {
+        "errorCode": null,
+        "errorDetail": null
+    },
+    "warnings": [],
+    "extractor": ""
+}

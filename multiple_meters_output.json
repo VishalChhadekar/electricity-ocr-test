@@ -1,0 +1,68 @@
+{
+  "data": {
+    "invoiceNumber": {
+      "id": 2183273815,
+      "rectangle": {
+        "x0": 100.0,
+        "y0": 100.0,
+        "x1": 200.0,
+        "y1": 120.0,
+        "pageIndex": 0
+      },
+      "rectangles": [
+        {
+          "x0": 100.0,
+          "y0": 100.0,
+          "x1": 200.0,
+          "y1": 120.0,
+          "pageIndex": 0
+        }
+      ],
+      "document": "bcCdJJBc",
+      "pageIndex": 0,
+      "raw": "404022323107",
+      "parsed": "404022323107",
+      "confidence": 0.85,
+      "classificationConfidence": 0.85,
+      "textExtractionConfidence": 1.0,
+      "isVerified": false,
+      "isClientVerified": false,
+      "isAutoVerified": false,
+      "verifiedBy": null,
+      "dataPoint": null,
+      "contentType": "text",
+      "parent": null
+    },
+    "presentReadingDate": {
+      "raw": "",
+      "parsed": "",
+      "confidence": 0.0
+    },
+    "previousReadingDate": {
+      "raw": "",
+      "parsed": "",
+      "confidence": 0.0
+    },
+    "meterReadings": []
+  },
+  "error": {
+    "errorCode": null,
+    "errorDetail": null
+  },
+  "warnings": [],
+  "extractor": {
+    "version": "1.0.0",
+    "timestamp": "2025-07-11T15:55:11.907714",
+    "language": "eng",
+    "fileName": "Multiple-Meters.pdf",
+    "documentId": "AEecFcBf",
+    "rawText": "=== Page 1 ===\nALY Oa\n(74 West Bengal State Electricity Distribution Company Ltd.\n6 t | (A Government of West Bengal Enterprise) Helpline Nunor\nVERS BILL-Internet Copy (24X7)\nSALAP CUSTOMER CARE CENTER, PHONE No - 033-26537942 19121\n, CALL CENTER PHONE No - 19121(TOLL FREE), TAN: CALW05053G\na SENCO GOLD LIMITED Invoice No : 404022323107\n4 EXE DIR- SUVANKAR SEN GEMS & Prev. Read Date : 10.05.2024\nw JEWELLERY PARK GJA-4A4,SDF, BL-AA Cur Read Date : 01.09.2024\n3 Pin - 711409 Billing Date : 02.09.2024\nnt ConsumeriId : 103915402 Next Reading Date : 29.09.2024\nC Tariff Class : A(CM)-M Bill Month : SEP,2024\nz Installation No : 21215133 Connected Load : 49.41 KVA\nw Latitude : N/A Solar PV Capacity :\na Longitude : N/A Meter Reading unit: FDSMIMMR\n9 PAN of consumer (s) :AADCS6985J\nWw so SSeSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSFSFSSSFFFSSSeEeee\n@ Meter No Time Previous Present Multiplying Unit Max Demand\n9 Reading Reading Factor(MF) consumed (KVA)\noe TGO000253 N 164810.00 186913.00 1.00 22103.00\n. IT008695 N 0.00 8914.00 1.00 8914.00 56.12\n” ee\n5 Breakup of Charges Amount (Rs.)\ni ce\n5 Energy Charge 278369.63 Total Charges (Rs) 332656.09\n= Fixed/Demand Charge 11111.16 Timely Payment Rebate(Rs.) 2894.80\n_ Rental Charge 187.40 Due Date 12.09.2024\n> Electricity Duty Charge 42987.90 Amt Due within Due Dt(Rs.) 329762.00\n£ Adjustments** -0.13 Amt Due After Due Dt(Rs.) 332656.00\n= Outstanding amount (Rs.) #0.00 Amount payable at a time\n= through e-Payment within Due 326896.00\n*\na date\nE cn\n— Payment may be made using RTGS/NEFT in your exclusive a/c no: WBB1039154025133\nz with IFSC ICIC0000104 or SBIN0O004266.\nx As per order of WBERC dated 06.03.2024 & Subsidy from West Bengal Govt\n2 # Outstandings: Rs 0.00\n& Last Payment Details: Amount (Rs.): 236014.00 Payment date : 20.05.2024\n5 Security Deposit: Rs. 267154.89\n- Interest Rs. 15247.59 , TDS Rs. 1524.76 & Net Int. Rs. 13722.83 on Security\nE Deposit as on 31.03.2024\nEe Normal meter TG000253 was replaced\nao Old MRU:- FDD17QMR\n636\nc\n=)\np\n# Please ignore Outstanding amount if the payment has already been made & help us to correct\nour records by showing the money receipt to our billing section.",
+    "textLength": 2163,
+    "extractedFields": [
+      "invoiceNumber",
+      "meterNumber",
+      "rawText"
+    ],
+    "ocrEngine": "tesseract"
+  }
+}
