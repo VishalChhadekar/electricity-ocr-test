@@ -1,0 +1,29 @@
+# Environment variables
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test files
+test_*.py
+*_test.py
+
+# Output files
+*.json
+*.csv
+llm_extracted_data_*
+llm_extraction_summary_*
+batch_ocr_results_*
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

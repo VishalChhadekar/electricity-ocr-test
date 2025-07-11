@@ -42,7 +42,6 @@ class OCRExtractor:
         )
         self.logger = logging.getLogger(__name__)
     
-    
     def extract_text(self, image: Image.Image) -> str:
         """Extract text using a simple, fast OCR approach."""
         processed_image = self.preprocess_image(image)
@@ -71,216 +70,6 @@ class OCRExtractor:
             except Exception as e:
                 self.logger.error(f"OCR extraction failed: {e}")
                 return ""
-            
-            # Poor results - try targeted approach
-            else:
-                self.logger.info("Poor comprehensive results, trying targeted detection...")
-                
-                # Try most common language combinations for Indian documents
-                fallback_combinations = [
-                    ('eng', 'English-only'),
-                    ('hin+eng', 'Hindi+English'),
-                    ('mar+eng', 'Marathi+English'),
-                    ('kan+eng', 'Kannada+English')
-                ]
-                
-                best_result = text
-                best_confidence = confidence
-                best_lang = 'multi(comprehensive)'
-                
-                for lang_combo, description in fallback_combinations:
-                    try:
-                        fallback_text = pytesseract.image_to_string(
-                            processed_image,
-                            lang=lang_combo,
-                            config=r'--oem 3 --psm 6'
-                        )
-                        fallback_confidence = self.calculate_text_confidence(fallback_text)
-                        
-                        if fallback_confidence > best_confidence:
-                            best_result = fallback_text
-                            best_confidence = fallback_confidence
-                            best_lang = lang_combo.replace('+', '_')
-                            self.logger.info(f"Better result from {description}: conf={fallback_confidence:.2f}")
-                            
-                    except Exception as e:
-                        self.logger.warning(f"Fallback {description} failed: {e}")
-                
-                return best_result.strip(), best_lang
-                
-        except Exception as e:
-            self.logger.warning(f"Comprehensive detection failed: {e}")
-            
-            # Ultimate fallback to English
-            try:
-                self.logger.info("Using English fallback...")
-                text = pytesseract.image_to_string(
-                    processed_image,
-                    lang='eng',
-                    config=r'--oem 3 --psm 6'
-                )
-                return text.strip(), 'eng'
-            except Exception as e2:
-                self.logger.error(f"All detection methods failed: {e2}")
-                return "", 'eng'
-    
-    def calculate_script_match_bonus(self, text: str, language: str) -> float:
-        """Calculate bonus score based on how well the text matches the expected script for the language."""
-        if not text or not text.strip():
-            return 0.0
-        
-        # Count characters in different scripts
-        script_counts = {
-            'latin': 0,
-            'devanagari': 0,
-            'kannada': 0,
-            'tamil': 0,
-            'telugu': 0,
-            'gujarati': 0,
-            'bengali': 0,
-            'arabic': 0
-        }
-        
-        total_alpha = 0
-        for char in text:
-            if char.isalpha():
-                total_alpha += 1
-                code_point = ord(char)
-                
-                if code_point < 256:
-                    script_counts['latin'] += 1
-                elif 0x0900 <= code_point <= 0x097F:
-                    script_counts['devanagari'] += 1
-                elif 0x0C80 <= code_point <= 0x0CFF:
-                    script_counts['kannada'] += 1
-                elif 0x0B80 <= code_point <= 0x0BFF:
-                    script_counts['tamil'] += 1
-                elif 0x0C00 <= code_point <= 0x0C7F:
-                    script_counts['telugu'] += 1
-                elif 0x0A80 <= code_point <= 0x0AFF:
-                    script_counts['gujarati'] += 1
-                elif 0x0980 <= code_point <= 0x09FF:
-                    script_counts['bengali'] += 1
-                elif 0x0600 <= code_point <= 0x06FF:
-                    script_counts['arabic'] += 1
-        
-        if total_alpha == 0:
-            return 0.0
-        
-        # Calculate script ratios
-        script_ratios = {k: v / total_alpha for k, v in script_counts.items()}
-        
-        # Expected script for each language
-        language_script_map = {
-            'eng': 'latin',
-            'hin': 'devanagari',
-            'mar': 'devanagari',
-            'nep': 'devanagari',
-            'san': 'devanagari',
-            'kan': 'kannada',
-            'tam': 'tamil',
-            'tel': 'telugu',
-            'guj': 'gujarati',
-            'ben': 'bengali',
-            'urd': 'arabic',
-            'ara': 'arabic'
-        }
-        
-        expected_script = language_script_map.get(language, 'latin')
-        script_match_ratio = script_ratios.get(expected_script, 0.0)
-        
-        # Bonus calculation
-        if script_match_ratio > 0.5:
-            return 0.3  # Strong match
-        elif script_match_ratio > 0.2:
-            return 0.15  # Moderate match
-        elif script_match_ratio > 0.05:
-            return 0.05  # Weak match
-        else:
-            return 0.0  # No match
-    
-    def calculate_text_confidence(self, text: str) -> float:
-        """Calculate a confidence score for extracted text quality."""
-        if not text or not text.strip():
-            return 0.0
-        
-        text = text.strip()
-        char_count = len(text)
-        
-        if char_count == 0:
-            return 0.0
-        
-        # Basic metrics
-        words = text.split()
-        word_count = len(words)
-        
-        if word_count == 0:
-            return 0.1
-        
-        # Character type analysis
-        alpha_count = sum(1 for c in text if c.isalpha())
-        digit_count = sum(1 for c in text if c.isdigit())
-        space_count = sum(1 for c in text if c.isspace())
-        punct_count = sum(1 for c in text if c in '.,;:!?()-')
-        
-        # Ratios
-        alpha_ratio = alpha_count / char_count
-        digit_ratio = digit_count / char_count
-        space_ratio = space_count / char_count
-        
-        # Scoring factors
-        
-        # 1. Text length score (longer text usually better)
-        length_score = min(char_count / 500, 1.0)  # Normalize to 500 chars
-        
-        # 2. Word structure score
-        avg_word_length = char_count / word_count if word_count > 0 else 0
-        if 2 <= avg_word_length <= 10:  # Reasonable word lengths
-            word_structure_score = 0.8
-        elif 1 <= avg_word_length <= 15:
-            word_structure_score = 0.6
-        else:
-            word_structure_score = 0.3
-        
-        # 3. Character composition score
-        if alpha_ratio >= 0.4:  # Good amount of alphabetic content
-            char_composition_score = min(alpha_ratio, 0.8)
-        elif digit_ratio >= 0.3:  # Numeric content (bills have lots of numbers)
-            char_composition_score = 0.7
-        else:
-            char_composition_score = 0.3
-        
-        # 4. Readability score (penalize too many special characters)
-        special_char_ratio = 1 - (alpha_ratio + digit_ratio + space_ratio)
-        if special_char_ratio > 0.3:
-            readability_score = 0.5  # Too many special characters
-        else:
-            readability_score = 0.9
-        
-        # 5. Word count bonus
-        if word_count >= 10:
-            word_count_score = 0.9
-        elif word_count >= 5:
-            word_count_score = 0.7
-        else:
-            word_count_score = 0.5
-        
-        # Combine scores with weights
-        confidence = (
-            length_score * 0.25 +
-            word_structure_score * 0.2 +
-            char_composition_score * 0.25 +
-            readability_score * 0.15 +
-            word_count_score * 0.15
-        )
-        
-        # Bonus for common patterns in electricity bills
-        text_lower = text.lower()
-        bill_keywords = ['bill', 'amount', 'date', 'total', 'payment', 'charge', 'electricity', 'meter', 'reading', 'rs', '₹']
-        keyword_bonus = sum(0.05 for keyword in bill_keywords if keyword in text_lower)
-        confidence += min(keyword_bonus, 0.2)  # Max 0.2 bonus
-        
-        return min(confidence, 1.0)
     
     def validate_file(self, file_path: str) -> Path:
         """Validate if the file exists and has a supported extension."""
@@ -334,30 +123,21 @@ class OCRExtractor:
         except Exception as e:
             raise RuntimeError(f"Failed to convert PDF to images: {e}")
     
-    def extract_text_from_image(self, image: Image.Image, page_num: int = 1) -> tuple:
-        """Extract text from a single image using Tesseract with language detection."""
+    def extract_text_from_image(self, image: Image.Image, page_num: int = 1) -> str:
+        """Extract text from a single image using simple OCR."""
         try:
             self.logger.info(f"Processing page {page_num}")
-            
-            # Extract text with automatic language detection
-            text, detected_lang = self.extract_text_with_language_detection(image, page_num)
-            
-            # Store detected language for reporting
-            if detected_lang not in self.detected_languages:
-                self.detected_languages.append(detected_lang)
-            
-            return text, detected_lang
-            
+            text = self.extract_text(image)
+            return text
         except Exception as e:
             raise RuntimeError(f"Failed to extract text from image: {e}")
     
     def extract_text_from_file(self, file_path: str) -> dict:
-        """Extract text from file (PDF or image) with language detection results."""
+        """Extract text from file (PDF or image)."""
         path = self.validate_file(file_path)
         self.logger.info(f"Processing file: {path}")
         
         all_text = []
-        detected_languages = []
         
         if path.suffix.lower() == '.pdf':
             images = self.pdf_to_images(path)
@@ -366,67 +146,33 @@ class OCRExtractor:
         
         # Process each page/image
         for i, image in enumerate(images, 1):
-            text, detected_lang = self.extract_text_from_image(image, i)
+            text = self.extract_text_from_image(image, i)
             
             if text:
                 if len(images) > 1:
                     all_text.append(f"=== Page {i} ===\n{text}")
                 else:
                     all_text.append(text)
-                
-                detected_languages.append(detected_lang)
         
         combined_text = "\n\n".join(all_text)
         self.logger.info(f"Successfully extracted {len(combined_text)} characters of text")
         
-        # Determine most common detected language
-        if detected_languages:
-            most_common_lang = max(set(detected_languages), key=detected_languages.count)
-        else:
-            most_common_lang = self.language if self.language != 'auto' else 'eng'
-        
         return {
             'text': combined_text,
-            'detected_language': most_common_lang,
-            'all_detected_languages': list(set(detected_languages)),
-            'page_languages': detected_languages
+            'text_length': len(combined_text)
         }
     
     def create_json_output(self, extraction_result: dict, file_path: str) -> dict:
-        """Create JSON output with raw OCR text and language detection results."""
+        """Create JSON output with raw OCR text."""
         path = Path(file_path)
         
         raw_text = extraction_result['text']
-        detected_lang = extraction_result['detected_language']
-        all_detected = extraction_result['all_detected_languages']
-        
-        # Get language name
-        if detected_lang.startswith('multi('):
-            if 'comprehensive' in detected_lang:
-                lang_name = 'Multiple Languages (Comprehensive Auto-Detection)'
-            elif 'indian' in detected_lang:
-                lang_name = 'Multiple Indian Languages'
-            else:
-                lang_name = f'Multiple Languages: {detected_lang}'
-        elif '_' in detected_lang:
-            # Handle combined languages like 'hin_eng'
-            langs = detected_lang.split('_')
-            lang_names = [self.SUPPORTED_LANGUAGES.get(lang, lang) for lang in langs]
-            lang_name = ' + '.join(lang_names)
-        else:
-            lang_name = self.SUPPORTED_LANGUAGES.get(detected_lang, f"Unknown ({detected_lang})")
         
         output = {
             "data": {
                 "rawText": raw_text,
                 "textLength": len(raw_text),
                 "extractedAt": datetime.now().isoformat(),
-                "detectedLanguage": detected_lang,
-                "detectedLanguageName": lang_name,
-                "allDetectedLanguages": all_detected,
-                "pageLanguages": extraction_result['page_languages'],
-                "inputLanguageMode": self.language,
-                "autoDetectionEnabled": self.enable_auto_detection,
                 "fileName": path.name,
                 "fileExtension": path.suffix.lower(),
                 "ocrEngine": "tesseract",
@@ -442,9 +188,9 @@ class OCRExtractor:
         return output
     
     def process_file(self, file_path: str) -> dict:
-        """Process file and return OCR results in JSON format with automatic language detection."""
+        """Process file and return OCR results in JSON format."""
         try:
-            # Extract text with language detection
+            # Extract text
             extraction_result = self.extract_text_from_file(file_path)
             
             # Create JSON output
@@ -459,12 +205,6 @@ class OCRExtractor:
                     "rawText": "",
                     "textLength": 0,
                     "extractedAt": datetime.now().isoformat(),
-                    "detectedLanguage": "unknown",
-                    "detectedLanguageName": "Unknown",
-                    "allDetectedLanguages": [],
-                    "pageLanguages": [],
-                    "inputLanguageMode": self.language,
-                    "autoDetectionEnabled": self.enable_auto_detection,
                     "fileName": Path(file_path).name if file_path else "unknown",
                     "fileExtension": "",
                     "ocrEngine": "tesseract",
@@ -481,15 +221,13 @@ class OCRExtractor:
 def main():
     """Main function to handle command line arguments and run OCR."""
     parser = argparse.ArgumentParser(
-        description="OCR Text Extractor for Electricity Bills",
+        description="Simple OCR Text Extractor for Electricity Bills",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python ocr_extractor.py --file "bill.pdf"                    # Auto-detect language
-  python ocr_extractor.py --file "bill.pdf" --lang auto        # Explicit auto-detection
-  python ocr_extractor.py --file "bill.pdf" --lang hin         # Force Hindi
-  python ocr_extractor.py --file image.jpg --output result.json --pretty
-  python ocr_extractor.py --file "multiple_pages.pdf" --text-only
+  python ocr_extractor_simple.py --file "bill.pdf"
+  python ocr_extractor_simple.py --file "bill.pdf" --output result.json --pretty
+  python ocr_extractor_simple.py --file image.jpg --text-only
         """
     )
     
@@ -497,12 +235,6 @@ Examples:
         '--file', '-f',
         required=True,
         help='Path to the input file (PDF, JPG, JPEG, PNG)'
-    )
-    
-    parser.add_argument(
-        '--lang', '-l',
-        default='auto',
-        help='Language code for OCR (default: auto). Use "auto" for automatic detection, or specify language codes like eng, hin, mar, kan, etc.'
     )
     
     parser.add_argument(
@@ -536,7 +268,7 @@ Examples:
     
     try:
         # Initialize OCR tool
-        ocr_tool = OCRExtractor(language=args.lang)
+        ocr_tool = OCRExtractor()
         
         # Process the file
         if args.text_only:
@@ -549,7 +281,6 @@ Examples:
                 output_path = Path(args.output)
                 output_path.write_text(raw_text, encoding='utf-8')
                 print(f"\nRaw text saved to: {output_path}", file=sys.stderr)
-                print(f"Detected language: {extraction_result['detected_language']}", file=sys.stderr)
         else:
             # Extract and output JSON
             result = ocr_tool.process_file(args.file)
@@ -575,12 +306,6 @@ Examples:
                 "rawText": "",
                 "textLength": 0,
                 "extractedAt": datetime.now().isoformat(),
-                "detectedLanguage": "unknown",
-                "detectedLanguageName": "Unknown",
-                "allDetectedLanguages": [],
-                "pageLanguages": [],
-                "inputLanguageMode": args.lang if hasattr(args, 'lang') else 'auto',
-                "autoDetectionEnabled": True,
                 "fileName": Path(args.file).name if hasattr(args, 'file') and args.file else "unknown",
                 "fileExtension": "",
                 "ocrEngine": "tesseract",
