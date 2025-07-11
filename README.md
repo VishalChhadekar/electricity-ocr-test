@@ -1,15 +1,16 @@
 # Electricity Bill OCR Text Extractor
 
-A Python-based OCR tool that extracts text from electricity bills in various formats and multiple Indian languages using Tesseract.
+A simple Python-based OCR tool that extracts raw text from electricity bills using Tesseract OCR.
 
 ## Features
 
 - 🔍 **Multi-format Support**: Processes PDF, JPG, JPEG, and PNG files
-- 🌏 **Multi-language Support**: English, Hindi, Marathi, and Kannada
+- 🌏 **Multi-language Support**: English, Hindi, Marathi, and Kannada  
 - 📄 **PDF Processing**: Automatically converts PDF pages to images for OCR
 - 🖼️ **Image Preprocessing**: Enhances image quality for better text recognition
 - 💻 **CLI Interface**: Easy-to-use command-line interface
-- 📝 **Text Output**: Displays extracted text and optionally saves to file
+- � **JSON Output**: Structured JSON output with metadata
+- 📝 **Text Output**: Raw text extraction option
 
 ## Supported Languages
 
@@ -26,8 +27,38 @@ A Python-based OCR tool that extracts text from electricity bills in various for
 
 1. **Tesseract OCR**: You need to install Tesseract OCR on your system:
 
-   **Windows:**
-   - Download from: https://github.com/UB-Mannheim/tesseract/wiki
+   **Linux (Ubuntu/Debian):**
+   ```bash
+   sudo apt update
+   sudo apt install tesseract-ocr tesseract-ocr-hin tesseract-ocr-mar tesseract-ocr-kan
+   ```
+
+   **Linux (CentOS/RHEL):**
+   ```bash
+   sudo yum install tesseract tesseract-langpack-hin tesseract-langpack-mar tesseract-langpack-kan
+   ```
+
+   **macOS:**
+   ```bash
+   brew install tesseract tesseract-lang
+   ```
+
+2. **Poppler**: For PDF processing:
+
+   **Linux (Ubuntu/Debian):**
+   ```bash
+   sudo apt install poppler-utils
+   ```
+
+   **Linux (CentOS/RHEL):**
+   ```bash
+   sudo yum install poppler-utils
+   ```
+
+   **macOS:**
+   ```bash
+   brew install poppler
+   ```
    - Install and add to PATH
    - Download language packs for Indian languages
 
@@ -46,103 +77,117 @@ A Python-based OCR tool that extracts text from electricity bills in various for
 
 2. **Poppler** (for PDF processing):
 
-   **Windows:**
-   - Download from: https://github.com/oschwartz10612/poppler-windows/releases/
-   - Extract and add to PATH
-
-   **macOS:**
-   ```bash
-   brew install poppler
-   ```
-
-   **Linux:**
-   ```bash
-   sudo apt install poppler-utils
-   ```
-
 ## Installation
 
-1. **Clone or download this project**
-
-2. **Install Python dependencies:**
+1. **Install Python dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
 ## Usage
 
-### Basic Usage
+### Command Line Arguments
 
 ```bash
-python ocr_extractor.py --file "path/to/your/file" --lang <language_code>
+python ocr_extractor.py --file <path> [options]
 ```
+
+**Required Arguments:**
+- `--file`, `-f`: Path to the input file (PDF, JPG, JPEG, PNG)
+
+**Optional Arguments:**
+- `--lang`, `-l`: Language code for OCR (default: eng)
+  - Choices: `eng`, `hin`, `mar`, `kan`
+- `--output`, `-o`: Output file path to save results
+- `--verbose`, `-v`: Enable verbose logging
+- `--pretty`, `-p`: Pretty print JSON output  
+- `--text-only`: Output only raw text without JSON formatting
 
 ### Examples
 
-1. **Extract text from a Marathi PDF:**
+1. **Extract text from a Marathi PDF (JSON output):**
    ```bash
-   python ocr_extractor.py --file "file samples/Maharastra.pdf" --lang mar
+   python ocr_extractor.py --file "bill.pdf" --lang mar --pretty
    ```
 
-2. **Extract text from an English image:**
+2. **Extract raw text only from an English image:**
    ```bash
-   python ocr_extractor.py --file "bill.jpg" --lang eng
+   python ocr_extractor.py --file "bill.jpg" --lang eng --text-only
    ```
 
-3. **Extract text from Hindi PDF and save to file:**
+3. **Save results to file:**
    ```bash
-   python ocr_extractor.py --file "hindi_bill.pdf" --lang hin --output extracted_text.txt
+   python ocr_extractor.py --file "bill.pdf" --lang mar --output results.json --pretty
    ```
 
-4. **Extract with verbose logging:**
+4. **Verbose processing with English:**
    ```bash
-   python ocr_extractor.py --file "bill.png" --lang kan --verbose
+   python ocr_extractor.py --file "bill.pdf" --lang eng --verbose --pretty
    ```
 
-### Batch Processing
+### Output Formats
 
-For processing multiple files at once, use the batch processor:
-
-```bash
-python batch_ocr.py --input "bills_folder/" --output "extracted_texts/" --lang mar
+**JSON Output (default):**
+```json
+{
+  "data": {
+    "rawText": "Extracted text content here...",
+    "textLength": 1234,
+    "extractedAt": "2025-07-11T15:30:00.000000",
+    "language": "eng",
+    "languageName": "English",
+    "fileName": "bill.pdf",
+    "fileExtension": ".pdf",
+    "ocrEngine": "tesseract",
+    "extractionId": "unique-uuid-here"
+  },
+  "error": {
+    "errorCode": null,
+    "errorDetail": null
+  },
+  "status": "success"
+}
 ```
 
-This will process all supported files in the input directory and save extracted text files in the output directory.
+**Text-only Output:**
+```
+Raw extracted text from the document...
+```
 
-### Command Line Options
+## Testing Installation
 
-- `--file, -f`: Path to input file (required)
-- `--lang, -l`: Language code (default: `eng`)
-- `--output, -o`: Output file path to save extracted text (optional)
-- `--verbose, -v`: Enable verbose logging
-- `--help, -h`: Show help message
+Test your installation:
+
+```bash
+python test_installation.py
+```
+
+This will verify that all dependencies are correctly installed and working.
 
 ## File Structure
 
 ```
 electricity-ocr-test/
-├── ocr_extractor.py       # Main OCR script
-├── batch_ocr.py          # Batch processing script
-├── test_installation.py  # Installation test script
-├── examples.py           # Usage examples
-├── setup.bat            # Windows setup script
-├── requirements.txt      # Python dependencies
-├── README.md            # This file
-└── file samples/         # Sample files
-    └── Maharastra.pdf    # Sample Marathi electricity bill
+├── ocr_extractor.py        # Main OCR script
+├── test_installation.py   # Installation test script
+├── requirements.txt       # Python dependencies
+├── README.md              # This file
+└── file samples/           # Sample files
+    ├── Maharastra.pdf      # Sample Marathi electricity bill
+    └── Multiple-Meters.pdf # Sample English electricity bill
 ```
 
 ## How It Works
 
 1. **File Validation**: Checks if the input file exists and has a supported extension
-2. **PDF Conversion**: Converts PDF pages to high-resolution images (300 DPI)
+2. **PDF Conversion**: Converts PDF pages to high-resolution images (300 DPI) 
 3. **Image Preprocessing**: 
    - Converts to grayscale
    - Enhances contrast and sharpness
    - Applies gaussian blur to reduce noise
 4. **OCR Processing**: Uses Tesseract with language-specific models
 5. **Text Extraction**: Extracts and formats text from all pages/images
-6. **Output**: Displays text on console and optionally saves to file
+6. **Output**: Returns structured JSON or raw text
 
 ## Troubleshooting
 
@@ -150,7 +195,7 @@ electricity-ocr-test/
 
 1. **"Tesseract not found"**:
    - Ensure Tesseract is installed and added to your system PATH
-   - On Windows, you might need to set the tesseract path manually
+   - Install language-specific packs as needed
 
 2. **"Language not supported"**:
    - Install the required Tesseract language packs
@@ -158,6 +203,19 @@ electricity-ocr-test/
 
 3. **Poor OCR quality**:
    - Ensure input images are high quality and well-lit
+   - Try different preprocessing settings for specific document types
+
+4. **PDF processing issues**:
+   - Ensure Poppler is properly installed
+   - Check that PDF files are not password-protected or corrupted
+
+## License
+
+This project is open source and available under the MIT License.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
    - Try different preprocessing options
    - Check if the language setting matches the document
 
