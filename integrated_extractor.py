@@ -9,7 +9,6 @@ import os
 import sys
 from pathlib import Path
 from datetime import datetime
-import csv
 import logging
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
@@ -255,10 +254,6 @@ def batch_extract_with_llm(samples_dir: str = None, openai_api_key: str = None, 
     json_filename = f"llm_extracted_data_{timestamp}.json"
     generate_detailed_json(results, json_filename)
     
-    # Generate summary CSV
-    csv_filename = f"llm_extraction_summary_{timestamp}.csv"
-    generate_summary_csv(results, csv_filename)
-    
     # Print final summary
     print("\n" + "=" * 80)
     print("INTEGRATED EXTRACTION COMPLETE")
@@ -276,7 +271,6 @@ def batch_extract_with_llm(samples_dir: str = None, openai_api_key: str = None, 
     print(f"Total fields extracted: {total_fields}")
     print(f"\nOutput files generated:")
     print(f"  📊 Detailed JSON: {json_filename}")
-    print(f"  📋 Summary CSV: {csv_filename}")
 
 
 def generate_detailed_json(results, filename):
@@ -314,63 +308,6 @@ def generate_detailed_json(results, filename):
         
     except Exception as e:
         print(f"✗ Failed to generate detailed JSON: {e}")
-
-
-def generate_summary_csv(results, filename):
-    """Generate enhanced summary CSV for the new schema."""
-    try:
-        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = [
-                'Sr_No', 'File_Name', 'Status', 'Fields_Extracted', 'Confidence_Score',
-                'Bill_Number_Raw', 'Bill_Number_Parsed', 'Customer_Name_Raw', 'Customer_Name_Parsed',
-                'Total_Amount_Raw', 'Total_Amount_Parsed', 'Units_Consumed', 'Company_Name_Raw', 
-                'Company_Name_Parsed', 'Bill_Date_Raw', 'Bill_Date_Parsed', 'Due_Date_Raw', 'Due_Date_Parsed',
-                'LLM_Extracted_Output', 'LLM_Accuracy'
-            ]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            
-            writer.writeheader()
-            for result in results:
-                structured_data = result['structured_data']
-                data = structured_data.get('data', {})
-                metadata = structured_data.get('extractionMetadata', {})
-                
-                # Get first meter reading for units consumed
-                meter_readings = data.get('meterReadings', [])
-                units_consumed = meter_readings[0].get('unitsConsumed', '') if meter_readings else ''
-                
-                # Create a summary of extracted output
-                llm_output_summary = f"Fields: {metadata.get('extracted_fields_count', 0)}/{metadata.get('total_possible_fields', 0)}, " + \
-                                   f"Confidence: {metadata.get('overall_confidence', 0):.2f}, " + \
-                                   f"Quality: {metadata.get('quality_score', 0):.2f}"
-                
-                writer.writerow({
-                    'Sr_No': result['sr_no'],
-                    'File_Name': result['file_name'],
-                    'Status': result['status'],
-                    'Fields_Extracted': result['extracted_fields'],
-                    'Confidence_Score': f"{result['confidence_score']:.2f}",
-                    'Bill_Number_Raw': data.get('invoiceNumber', {}).get('raw', ''),
-                    'Bill_Number_Parsed': data.get('invoiceNumber', {}).get('parsed', ''),
-                    'Customer_Name_Raw': data.get('customerInfo', {}).get('name', {}).get('raw', ''),
-                    'Customer_Name_Parsed': data.get('customerInfo', {}).get('name', {}).get('parsed', ''),
-                    'Total_Amount_Raw': data.get('billingDetails', {}).get('totalAmount', {}).get('raw', ''),
-                    'Total_Amount_Parsed': data.get('billingDetails', {}).get('totalAmount', {}).get('parsed', ''),
-                    'Units_Consumed': units_consumed,
-                    'Company_Name_Raw': data.get('utilityInfo', {}).get('companyName', {}).get('raw', ''),
-                    'Company_Name_Parsed': data.get('utilityInfo', {}).get('companyName', {}).get('parsed', ''),
-                    'Bill_Date_Raw': data.get('billingDate', {}).get('raw', ''),
-                    'Bill_Date_Parsed': data.get('billingDate', {}).get('parsed', ''),
-                    'Due_Date_Raw': data.get('billingDetails', {}).get('dueDate', {}).get('raw', ''),
-                    'Due_Date_Parsed': data.get('billingDetails', {}).get('dueDate', {}).get('parsed', ''),
-                    'LLM_Extracted_Output': llm_output_summary,
-                    'LLM_Accuracy': f"{metadata.get('overall_confidence', 0):.2f}"
-                })
-        
-        print(f"✓ Enhanced Summary CSV saved: {filename}")
-        
-    except Exception as e:
-        print(f"✗ Failed to generate summary CSV: {e}")
 
 
 if __name__ == "__main__":
