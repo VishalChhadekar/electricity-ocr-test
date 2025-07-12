@@ -46,9 +46,9 @@ class OCRExtractor:
         """Extract text using a simple, fast OCR approach."""
         processed_image = self.preprocess_image(image)
         
-        # Use a comprehensive language set for Indian electricity bills
-        # This covers most common languages in a single pass
-        comprehensive_langs = 'eng+hin+mar+kan+ben+guj+tam+tel'
+        # Comprehensive Indian language set for complete electricity bill coverage
+        # All major Indian languages used in electricity bills across states (14 languages)
+        comprehensive_langs = 'eng+hin+mar+guj+ben+tam+tel+kan+mal+ori+pan+asm+urd+san'
         
         try:
             text = pytesseract.image_to_string(
