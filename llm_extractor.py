@@ -206,10 +206,41 @@ class LLMInvoiceExtractor:
             return self._create_error_response(str(e), file_name, raw_text)
     
     def _create_extraction_prompt(self, raw_text: str, file_name: str) -> str:
-        """Create a detailed prompt for data extraction."""
+        """Create a comprehensive pattern-aware prompt for electricity bill data extraction."""
         
         return f"""
-Extract structured data from this electricity bill OCR text. Return ONLY a valid JSON object with the following exact schema:
+You are an expert electricity bill data extraction system. Extract structured data from this Indian electricity bill OCR text with deep pattern recognition.
+
+CRITICAL FIELD PATTERNS TO RECOGNIZE:
+
+**Invoice/Bill Number Patterns:**
+- Look for: "Bill No", "Invoice No", "Bill Number", "Invoice Number", "Bill No.", "Invoice No."
+
+**Meter Number Patterns (NOT Meter Code):**
+- METER NUMBER: "RRNO", "RR No", "RR.Number", "Meter No", "Meter Number", "Serial No", "Meter Serial"
+- IGNORE: "MR Code", "MRCode", "MRC" (these are meter codes, not numbers)
+
+**Date Patterns:**
+- Previous Reading: "Previous Reading Date", "Last Reading", "From Date", "Reading From"
+- Present Reading: "Present Reading Date", "Current Reading", "To Date", "Reading To", "Current Date"
+- Bill Date: "Bill Date", "Billing Date", "Issue Date", "Generated Date"
+- Due Date: "Due Date", "Payment Due", "Last Date", "Pay Before"
+
+**Table Structure Recognition:**
+- Meter readings often appear in tabular format with columns
+- Look for numeric patterns in tables: Previous Reading | Present Reading | Units | Consumption
+- Identify table headers and extract corresponding values from rows below
+
+**Amount Patterns:**
+- Total Amount: "Total Amount", "Amount Payable", "Total Payable", "Net Amount", "Final Amount"
+- Look for currency symbols: ₹, Rs., Rs, INR
+
+**Customer Information Patterns:**
+- Name: "Consumer Name", "Customer Name", "Name", "Consumer"
+- ID: "Consumer ID", "Customer ID", "K.No", "Account No", "Service No", "Connection No"
+- Mobile: "Mobile", "Mobile No", "Phone", "Contact", "Mob"
+
+Return ONLY valid JSON with this exact schema:
 
 {{
   "data": {{
@@ -277,34 +308,33 @@ Extract structured data from this electricity bill OCR text. Return ONLY a valid
     }},
     "meterReadings": [
       {{
-        "meterNumber": "meter number or null",
+        "meterNumber": "ACTUAL meter number (RRNO/RR No/Meter No) NOT meter code",
         "previousReading": "numeric value as string or null",
         "presentReading": "numeric value as string or null", 
         "multiplyingFactor": "numeric value as string or null",
-        "unitsConsumed": "numeric value as string or null",
-        "maxDemand": "numeric value as string or null"
+        "unitsConsumed": "calculated or stated units consumed or null",
+        "maxDemand": "maximum demand value or null"
       }}
     ]
   }},
   "extractionMetadata": {{
-    "confidence_score": "number between 0-1",
+    "confidence_score": "number between 0-1 based on pattern recognition success",
     "extracted_fields_count": "number of non-null fields extracted",
-    "total_possible_fields": "total number of extractable fields"
+    "total_possible_fields": 46
   }}
 }}
 
-Rules:
-1. For "raw" values: Extract EXACTLY as it appears in the OCR text
-2. For "parsed" values: Clean, format, and standardize the data
-3. Convert dates to YYYY-MM-DD format in parsed values
-4. Extract numeric values as strings in meter readings
-5. If multiple meters exist, include all in the meterReadings array
-6. Use null for missing/unclear information
-7. Provide confidence score based on overall extraction quality
-8. Count extracted fields accurately
-9. Return ONLY valid JSON, no explanations
+EXTRACTION GUIDELINES:
+1. **Pattern Recognition**: Use the field patterns above to identify correct values
+2. **Table Processing**: For tabular data, match column headers with values in corresponding rows
+3. **Field Distinction**: Carefully distinguish between Meter Number and Meter Code
+4. **Date Normalization**: Convert all dates to YYYY-MM-DD format in parsed values
+5. **Number Extraction**: Extract clean numeric values for readings and amounts
+6. **Multiple Meters**: If multiple meters exist, include all in meterReadings array
+7. **Context Awareness**: Use surrounding text context to validate field identification
+8. **Quality Assessment**: Base confidence score on pattern match success and field completeness
 
-File name: {file_name}
+File: {file_name}
 
 OCR Text:
 {raw_text}
