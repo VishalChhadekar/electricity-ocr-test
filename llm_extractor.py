@@ -206,47 +206,70 @@ class LLMInvoiceExtractor:
             return self._create_error_response(str(e), file_name, raw_text)
     
     def _create_extraction_prompt(self, raw_text: str, file_name: str) -> str:
-        """Create a comprehensive pattern-aware prompt for electricity bill data extraction."""
+        """Create a comprehensive pattern-aware prompt for electricity bill data extraction with enhanced recognition."""
         
         return f"""
-You are an expert electricity bill data extraction system. Extract structured data from this Indian electricity bill OCR text with deep pattern recognition.
+You are an expert electricity bill data extraction system with advanced pattern recognition capabilities. Extract structured data from this Indian electricity bill OCR text.
 
-CRITICAL FIELD PATTERNS TO RECOGNIZE:
+⚠️ CRITICAL ISSUE FIXES REQUIRED:
 
-**Invoice/Bill Number Patterns:**
-- Look for: "Bill No", "Invoice No", "Bill Number", "Invoice Number", "Bill No.", "Invoice No."
+**1. HYPHENATED NUMBERS - PRESERVE COMPLETE VALUES:**
+- ALWAYS keep hyphenated numbers intact: "100010750314-312928" must remain "100010750314-312928"
+- Do NOT truncate at hyphens: "100010750314-312928" is NOT "100010750314"
+- Common patterns: meter numbers, reference numbers, account numbers often have hyphens
 
-**Meter Number Patterns (NOT Meter Code):**
-- METER NUMBER: "RRNO", "RR No", "RR.Number", "Meter No", "Meter Number", "Serial No", "Meter Serial"
-- IGNORE: "MR Code", "MRCode", "MRC" (these are meter codes, not numbers)
+**2. CONSUMPTION TERMINOLOGY VARIATIONS:**
+- "Total Unit Consumption" = "Net Consumption" = "Units Consumed" = "Consumption Units"
+- "एकण युनिट" = "एकण" (add युनिट if missing)
+- All refer to total electricity consumption - extract the numeric value
 
-**Date Patterns:**
-- Previous Reading: "Previous Reading Date", "Last Reading", "From Date", "Reading From"
-- Present Reading: "Present Reading Date", "Current Reading", "To Date", "Reading To", "Current Date"
-- Bill Date: "Bill Date", "Billing Date", "Issue Date", "Generated Date"
-- Due Date: "Due Date", "Payment Due", "Last Date", "Pay Before"
+**3. METER NUMBER vs METER CODE - CRITICAL DISTINCTION:**
+- METER NUMBER (what we want): "RRNO", "RR No", "RR.Number", "Meter No", "Meter Number", "Serial No"
+- METER CODE (ignore): "MR Code", "MRCode", "MRC" - these are location/category codes
+- Look for actual numeric meter identifiers, often hyphenated
 
-**Table Structure Recognition:**
-- Meter readings often appear in tabular format with columns
-- Look for numeric patterns in tables: Previous Reading | Present Reading | Units | Consumption
-- Identify table headers and extract corresponding values from rows below
+**4. HINDI/MARATHI ABBREVIATIONS:**
+- "एकण" alone means "एकण युनिट" (total units)
+- "यूनिट्स" = "युनिट" 
+- "कंझम्पशन" = "खपत" (consumption)
 
-**Amount Patterns:**
-- Total Amount: "Total Amount", "Amount Payable", "Total Payable", "Net Amount", "Final Amount"
-- Look for currency symbols: ₹, Rs., Rs, INR
+**5. TABLE STRUCTURE AWARENESS:**
+- Meter reading data often appears in tables with columns:
+  | Meter Number | Previous Reading | Present Reading | Units Consumed |
+- Extract data from table rows, not just headers
+- Match column headers with corresponding values below
 
-**Customer Information Patterns:**
-- Name: "Consumer Name", "Customer Name", "Name", "Consumer"
-- ID: "Consumer ID", "Customer ID", "K.No", "Account No", "Service No", "Connection No"
-- Mobile: "Mobile", "Mobile No", "Phone", "Contact", "Mob"
+**FIELD PATTERNS WITH ENHANCED RECOGNITION:**
+
+**Invoice/Bill Number:**
+- "Bill No", "Invoice No", "बिल संख्या", "Invoice Number", "Bill Number"
+
+**Meter Number (CRITICAL - preserve hyphens):**
+- "RRNO", "RR No", "RR.Number", "Meter No", "मीटर संख्या", "Meter Number"
+- Often hyphenated: "123456-789", "ABC123-DEF456"
+
+**Consumption Amount Recognition:**
+- "Total Unit Consumption", "Net Consumption", "Units Consumed", "एकण युनिट", "एकण"
+- Extract the numeric value associated with these terms
+
+**Table Data Extraction:**
+- Identify table structure: headers followed by data rows
+- Extract corresponding values from proper table cells
+- Preserve numeric relationships in tabular format
+
+**Date Pattern Enhancement:**
+- Previous Reading: "Previous Reading Date", "पूर्व पठन दिनांक"
+- Present Reading: "Present Reading Date", "वर्तमान पठन दिनांक"
+- Billing Date: "Bill Date", "बिल दिनांक"
+- Due Date: "Due Date", "देय तिथि"
 
 Return ONLY valid JSON with this exact schema:
 
 {{
   "data": {{
     "invoiceNumber": {{
-      "raw": "exact text from OCR or null",
-      "parsed": "cleaned/formatted value or null"
+      "raw": "exact text from OCR including any hyphens or null",
+      "parsed": "cleaned value preserving hyphens or null"
     }},
     "previousReadingDate": {{
       "raw": "exact date text from OCR or null",
@@ -270,8 +293,8 @@ Return ONLY valid JSON with this exact schema:
         "parsed": "cleaned name or null"
       }},
       "customerId": {{
-        "raw": "exact ID from OCR or null",
-        "parsed": "cleaned ID or null"
+        "raw": "exact ID from OCR preserving hyphens or null",
+        "parsed": "cleaned ID preserving hyphens or null"
       }},
       "address": {{
         "raw": "exact address from OCR or null",
@@ -285,7 +308,7 @@ Return ONLY valid JSON with this exact schema:
     "billingDetails": {{
       "totalAmount": {{
         "raw": "exact amount text from OCR or null",
-        "parsed": "numeric value or null"
+        "parsed": "numeric value only or null"
       }},
       "dueDate": {{
         "raw": "exact due date from OCR or null",
@@ -308,31 +331,29 @@ Return ONLY valid JSON with this exact schema:
     }},
     "meterReadings": [
       {{
-        "meterNumber": "ACTUAL meter number (RRNO/RR No/Meter No) NOT meter code",
+        "meterNumber": "COMPLETE meter number with hyphens preserved (RRNO/RR No) NOT meter code",
         "previousReading": "numeric value as string or null",
         "presentReading": "numeric value as string or null", 
         "multiplyingFactor": "numeric value as string or null",
-        "unitsConsumed": "calculated or stated units consumed or null",
+        "unitsConsumed": "total consumption units (from any terminology variation) or null",
         "maxDemand": "maximum demand value or null"
       }}
     ]
   }},
   "extractionMetadata": {{
-    "confidence_score": "number between 0-1 based on pattern recognition success",
+    "confidence_score": "number between 0-1 based on successful pattern recognition",
     "extracted_fields_count": "number of non-null fields extracted",
     "total_possible_fields": 46
   }}
 }}
 
-EXTRACTION GUIDELINES:
-1. **Pattern Recognition**: Use the field patterns above to identify correct values
-2. **Table Processing**: For tabular data, match column headers with values in corresponding rows
-3. **Field Distinction**: Carefully distinguish between Meter Number and Meter Code
-4. **Date Normalization**: Convert all dates to YYYY-MM-DD format in parsed values
-5. **Number Extraction**: Extract clean numeric values for readings and amounts
-6. **Multiple Meters**: If multiple meters exist, include all in meterReadings array
-7. **Context Awareness**: Use surrounding text context to validate field identification
-8. **Quality Assessment**: Base confidence score on pattern match success and field completeness
+EXTRACTION RULES:
+1. **PRESERVE HYPHENS**: Never truncate hyphenated numbers (meter numbers, account numbers)
+2. **TABLE PROCESSING**: Extract data from table rows, not just headers
+3. **TERMINOLOGY MAPPING**: Recognize all consumption variations as the same field
+4. **METER vs CODE**: Only extract actual meter numbers, ignore meter codes
+5. **HINDI COMPLETENESS**: Expand abbreviated Hindi terms (एकण → एकण युनिट)
+6. **CONFIDENCE SCORING**: Higher confidence for complete hyphenated numbers and table data
 
 File: {file_name}
 

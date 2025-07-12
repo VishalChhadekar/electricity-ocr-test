@@ -44,104 +44,165 @@ class OCRExtractor:
     
     def _post_process_multilingual_text(self, raw_text: str) -> str:
         """
-        Post-process OCR text to handle multi-language issues and improve accuracy
+        Advanced post-processing to handle multi-language issues and improve accuracy
+        Addresses specific issues: hyphenated numbers, terminology variations, abbreviated terms
         """
         import re
         
-        self.logger.debug("Starting post-processing of multilingual OCR text...")
+        self.logger.debug("Starting advanced post-processing of multilingual OCR text...")
         processed_text = raw_text
         
-        # 1. Clean up excessive whitespace but preserve structure
-        processed_text = re.sub(r'\n\s*\n\s*\n', '\n\n', processed_text)
-        processed_text = re.sub(r'[ \t]+', ' ', processed_text)  # Multiple spaces to single space
+        # 1. Fix hyphenated meter numbers and similar patterns
+        # Common patterns: 123456-789, ABC123-DEF456, etc.
+        processed_text = re.sub(r'(\d+)\s*[-–—]\s*(\d+)', r'\1-\2', processed_text)
+        processed_text = re.sub(r'([A-Z]+\d+)\s*[-–—]\s*(\d+)', r'\1-\2', processed_text)
+        processed_text = re.sub(r'(\d+)\s*[-–—]\s*([A-Z]+\d+)', r'\1-\2', processed_text)
         
-        # 2. Fix common Hindi-English boundary issues
+        # 2. Fix common OCR spacing issues that break hyphenated numbers
+        processed_text = re.sub(r'(\d+)\s+[-–—]\s+(\d+)', r'\1-\2', processed_text)
+        processed_text = re.sub(r'(\d+)[-–—]\s+(\d+)', r'\1-\2', processed_text)
+        processed_text = re.sub(r'(\d+)\s+[-–—](\d+)', r'\1-\2', processed_text)
+        
+        # 3. Standardize terminology variations for better LLM recognition
+        terminology_fixes = {
+            # Consumption variations
+            r'Net\s+Consumption': 'Total Unit Consumption',
+            r'Net\s+Units': 'Total Unit Consumption', 
+            r'Consumption\s+Units': 'Total Unit Consumption',
+            r'Units\s+Consumed': 'Total Unit Consumption',
+            
+            # Meter number variations
+            r'RRNO\.?': 'Meter Number',
+            r'RR\s+No\.?': 'Meter Number',
+            r'RR\.Number': 'Meter Number',
+            r'Meter\s+Code': 'Meter Number',
+            r'MRCode': 'Meter Number',
+            r'MR\s+Code': 'Meter Number',
+            
+            # Hindi/Marathi abbreviations
+            r'एकण\s*युनिट': 'एकण युनिट',
+            r'एकण(?!\s*युनिट)': 'एकण युनिट',  # Add युनिट if missing
+            r'यूनिट्स': 'युनिट',
+            r'कंझम्पशन': 'खपत',
+            
+            # Bill number variations
+            r'Bill\s+No\.?': 'Bill Number',
+            r'बिल\s+क्र\.?': 'बिल संख्या',
+            r'Invoice\s+No\.?': 'Invoice Number',
+        }
+        
+        for pattern, replacement in terminology_fixes.items():
+            processed_text = re.sub(pattern, replacement, processed_text, flags=re.IGNORECASE)
+        
+        # 4. Clean up excessive whitespace but preserve table structure
+        processed_text = re.sub(r'\n\s*\n\s*\n', '\n\n', processed_text)
+        processed_text = re.sub(r'[ \t]+', ' ', processed_text)
+        
+        # 5. Fix common Hindi-English boundary issues
         processed_text = re.sub(r'([a-zA-Z])\s*([ऀ-ॿ])', r'\1 \2', processed_text)
         processed_text = re.sub(r'([ऀ-ॿ])\s*([a-zA-Z])', r'\1 \2', processed_text)
         
-        # 3. Clean up currency symbols and numbers
-        processed_text = re.sub(r'Rs\.\s*(\d+)', r'Rs. \1', processed_text)
-        processed_text = re.sub(r'रु\s*(\d+)', r'रु. \1', processed_text)
+        # 6. Preserve table formatting - fix common table separators
+        processed_text = re.sub(r'\|\s*\|', '|', processed_text)  # Fix double pipes
+        processed_text = re.sub(r'\s*\|\s*', ' | ', processed_text)  # Standardize pipe spacing
+        
+        # 7. Fix currency and number formatting
+        processed_text = re.sub(r'Rs\.?\s*(\d+)', r'Rs. \1', processed_text)
+        processed_text = re.sub(r'रु\.?\s*(\d+)', r'रु. \1', processed_text)
         processed_text = re.sub(r'₹\s*(\d+)', r'₹ \1', processed_text)
         
-        # 4. Fix common date format issues
+        # 8. Fix date formatting
         processed_text = re.sub(r'(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})', r'\1-\2-\3', processed_text)
         
-        # 5. Remove excessive special characters but preserve important ones
-        processed_text = re.sub(r'[‏‎۱۲۳۰-۹]+', '', processed_text)  # Remove Arabic-Indic digits artifacts
-        processed_text = re.sub(r'[੧੦ਕਿਗ]+', '', processed_text)  # Remove Gurmukhi artifacts
-        processed_text = re.sub(r'[০-৯৪৬৮ৰ]+', '', processed_text)  # Remove Bengali digit artifacts
+        # 9. Remove OCR artifacts while preserving important characters
+        processed_text = re.sub(r'[‏‎۱۲۳۰-۹]+', '', processed_text)  # Arabic-Indic digits
+        processed_text = re.sub(r'[੧੦ਕਿਗ]+', '', processed_text)  # Gurmukhi artifacts
+        processed_text = re.sub(r'[০-৯৪৬৮ৰ]+', '', processed_text)  # Bengali artifacts
         
-        # 6. Fix common meter reading table issues
-        processed_text = re.sub(r'मीटर\s*संख्या', 'मीटर संख्या', processed_text)
-        processed_text = re.sub(r'Meter\s*No', 'Meter No', processed_text)
-        processed_text = re.sub(r'बिल\s*संख्या', 'बिल संख्या', processed_text)
-        processed_text = re.sub(r'Bill\s*No', 'Bill No', processed_text)
-        
-        # 7. Clean up GST-related text (common issue in bills)
+        # 10. Fix GST-related text
         processed_text = re.sub(r'एसजीएसटी\s*(?:ए|८|9)', 'एसजीएसटी 9%', processed_text)
         processed_text = re.sub(r'सीजीएसटी\s*(?:९|9)', 'सीजीएसटी 9%', processed_text)
         
-        # 8. Fix phone number formatting
+        # 11. Clean up phone numbers
         processed_text = re.sub(r'(\d{3})XXXX(\d{3})', r'\1XXXXX\2', processed_text)
-        processed_text = re.sub(r'(\d{10})', r'\1', processed_text)  # Keep 10-digit numbers intact
         
-        # 9. Remove standalone single characters that are OCR artifacts
+        # 12. Remove standalone artifacts
         processed_text = re.sub(r'\n[^\w\s]\n', '\n', processed_text)
         
-        self.logger.debug(f"Post-processing completed: {len(processed_text)} characters")
+        self.logger.debug(f"Advanced post-processing completed: {len(processed_text)} characters")
         return processed_text.strip()
     
-    def _extract_with_multiple_strategies(self, image, strategies=['standard', 'enhanced', 'table_focused']):
+    def _extract_with_table_aware_strategies(self, image):
         """
-        Try multiple OCR strategies and combine results intelligently
+        Enhanced multi-strategy OCR specifically designed for table recognition
         """
         results = {}
         comprehensive_langs = 'eng+hin+mar+guj+ben+tam+tel+kan+mal+ori+pan+asm+urd+san'
         
-        for strategy in strategies:
-            try:
-                if strategy == 'standard':
-                    # Standard OCR with balanced preprocessing
-                    processed_image = self.preprocess_image(image, 'standard')
-                    text = pytesseract.image_to_string(
-                        processed_image,
-                        lang=comprehensive_langs,
-                        config='--psm 6 --oem 3'
-                    )
-                elif strategy == 'enhanced':
-                    # OCR with different PSM for mixed content
-                    processed_image = self.preprocess_image(image, 'line_by_line')
-                    text = pytesseract.image_to_string(
-                        processed_image,
-                        lang=comprehensive_langs,
-                        config='--psm 3 --oem 3'  # Fully automatic page segmentation
-                    )
-                elif strategy == 'table_focused':
-                    # OCR optimized for tabular data
-                    processed_image = self.preprocess_image(image, 'table_aware')
-                    text = pytesseract.image_to_string(
-                        processed_image,
-                        lang=comprehensive_langs,
-                        config='--psm 6 --oem 3 -c preserve_interword_spaces=1'
-                    )
-                
-                # Post-process each result
-                text = self._post_process_multilingual_text(text)
-                results[strategy] = text
-                self.logger.debug(f"Strategy '{strategy}': {len(text)} characters extracted")
-                
-            except Exception as e:
-                self.logger.warning(f"Strategy {strategy} failed: {e}")
-                results[strategy] = ""
+        # Strategy 1: Standard OCR
+        try:
+            processed_image = self.preprocess_image(image, 'standard')
+            text = pytesseract.image_to_string(
+                processed_image,
+                lang=comprehensive_langs,
+                config='--psm 6 --oem 3'
+            )
+            results['standard'] = self._post_process_multilingual_text(text)
+            self.logger.debug(f"Standard strategy: {len(results['standard'])} characters")
+        except Exception as e:
+            self.logger.warning(f"Standard strategy failed: {e}")
+            results['standard'] = ""
         
-        # Combine results intelligently
-        return self._combine_ocr_results(results)
+        # Strategy 2: Table-focused OCR with preserved spacing
+        try:
+            processed_image = self.preprocess_image(image, 'table_aware')
+            text = pytesseract.image_to_string(
+                processed_image,
+                lang=comprehensive_langs,
+                config='--psm 6 --oem 3 -c preserve_interword_spaces=1 -c page_separator=""'
+            )
+            results['table_focused'] = self._post_process_multilingual_text(text)
+            self.logger.debug(f"Table-focused strategy: {len(results['table_focused'])} characters")
+        except Exception as e:
+            self.logger.warning(f"Table-focused strategy failed: {e}")
+            results['table_focused'] = ""
+        
+        # Strategy 3: Line-by-line for complex layouts
+        try:
+            processed_image = self.preprocess_image(image, 'line_by_line')
+            text = pytesseract.image_to_string(
+                processed_image,
+                lang=comprehensive_langs,
+                config='--psm 4 --oem 3 -c preserve_interword_spaces=1'
+            )
+            results['line_by_line'] = self._post_process_multilingual_text(text)
+            self.logger.debug(f"Line-by-line strategy: {len(results['line_by_line'])} characters")
+        except Exception as e:
+            self.logger.warning(f"Line-by-line strategy failed: {e}")
+            results['line_by_line'] = ""
+        
+        # Strategy 4: Sparse text mode for difficult cases
+        try:
+            processed_image = self.preprocess_image(image, 'standard')
+            text = pytesseract.image_to_string(
+                processed_image,
+                lang=comprehensive_langs,
+                config='--psm 8 --oem 3'  # Treat image as single word
+            )
+            results['sparse_text'] = self._post_process_multilingual_text(text)
+            self.logger.debug(f"Sparse text strategy: {len(results['sparse_text'])} characters")
+        except Exception as e:
+            self.logger.warning(f"Sparse text strategy failed: {e}")
+            results['sparse_text'] = ""
+        
+        return self._intelligently_combine_results(results)
     
-    def _combine_ocr_results(self, results):
+    def _intelligently_combine_results(self, results):
         """
-        Intelligently combine multiple OCR results to get the best text
+        Intelligently combine multiple OCR results focusing on table preservation and completeness
         """
+        import re
+        
         if not results:
             return ""
         
@@ -151,23 +212,43 @@ class OCRExtractor:
         if not valid_results:
             return ""
         
-        # Use the longest result as base (usually captures more content)
-        best_strategy = max(valid_results.keys(), key=lambda k: len(valid_results[k]))
-        best_result = valid_results[best_strategy]
-        
-        # Log comparison for debugging
+        # Scoring system for result quality
+        scored_results = []
         for strategy, text in valid_results.items():
-            self.logger.info(f"Strategy '{strategy}': {len(text)} characters")
+            score = len(text)  # Base score on length
+            
+            # Bonus for table indicators
+            if '|' in text or 'Meter Number' in text or 'मीटर संख्या' in text:
+                score += 200
+            
+            # Bonus for hyphenated numbers (likely meter numbers)
+            hyphen_count = len(re.findall(r'\d+-\d+', text))
+            score += hyphen_count * 100
+            
+            # Bonus for key terminology
+            key_terms = ['Total Unit Consumption', 'Net Consumption', 'RRNO', 'एकण युनिट']
+            for term in key_terms:
+                if term in text:
+                    score += 50
+            
+            scored_results.append((strategy, text, score))
         
-        self.logger.info(f"Selected best result from '{best_strategy}' strategy")
-        return best_result
+        # Select best result based on score
+        best_strategy, best_text, best_score = max(scored_results, key=lambda x: x[2])
+        
+        # Log results for debugging
+        for strategy, text, score in scored_results:
+            self.logger.info(f"Strategy '{strategy}': {len(text)} chars, score: {score}")
+        
+        self.logger.info(f"Selected best result from '{best_strategy}' strategy (score: {best_score})")
+        return best_text
 
     def extract_text(self, image: Image.Image) -> str:
-        """Extract text using enhanced multi-strategy OCR with comprehensive post-processing."""
-        self.logger.info("Starting enhanced multi-strategy OCR extraction...")
+        """Extract text using enhanced table-aware multi-strategy OCR with comprehensive post-processing."""
+        self.logger.info("Starting enhanced table-aware multi-strategy OCR extraction...")
         
-        # Use multi-strategy approach with intelligent combination
-        best_text = self._extract_with_multiple_strategies(image)
+        # Use enhanced table-aware strategy approach
+        best_text = self._extract_with_table_aware_strategies(image)
         
         # Fallback to English if all comprehensive attempts fail
         if not best_text or len(best_text) < 50:
