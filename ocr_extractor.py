@@ -25,14 +25,18 @@ except ImportError as e:
 
 
 class OCRExtractor:
-    """Simple OCR extractor that focuses only on text extraction without language detection."""
+    """Optimized OCR extractor with smart caching and performance improvements."""
     
     # Supported file extensions
     SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.pdf'}
 
     def __init__(self):
-        """Initialize the simple OCR extractor."""
+        """Initialize the optimized OCR extractor."""
         self.setup_logging()
+        
+        # Performance optimizations
+        self._preprocessed_cache = {}  # Cache preprocessed images
+        self._last_image_hash = None
         
     def setup_logging(self):
         """Setup logging configuration."""
@@ -41,6 +45,11 @@ class OCRExtractor:
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
         self.logger = logging.getLogger(__name__)
+    
+    def _get_image_hash(self, image):
+        """Quick hash of image for caching"""
+        import hashlib
+        return hashlib.md5(image.tobytes()).hexdigest()[:16]
     
     def _post_process_multilingual_text(self, raw_text: str) -> str:
         """
@@ -134,139 +143,221 @@ class OCRExtractor:
     
     def _extract_with_table_aware_strategies(self, image):
         """
-        Enhanced multi-strategy OCR specifically designed for table recognition
+        Ultra-optimized multi-strategy OCR with aggressive early exit and language optimization
         """
-        results = {}
-        comprehensive_langs = 'eng+hin+mar+guj+ben+tam+tel+kan+mal+ori+pan+asm+urd+san'
         
-        # Strategy 1: Standard OCR
-        try:
-            processed_image = self.preprocess_image(image, 'standard')
-            text = pytesseract.image_to_string(
-                processed_image,
-                lang=comprehensive_langs,
-                config='--psm 6 --oem 3'
-            )
-            results['standard'] = self._post_process_multilingual_text(text)
-            self.logger.debug(f"Standard strategy: {len(results['standard'])} characters")
-        except Exception as e:
-            self.logger.warning(f"Standard strategy failed: {e}")
-            results['standard'] = ""
+        # Strategy definitions with optimized language sets
+        strategies = [
+            {
+                'name': 'standard_fast',
+                'config': '--psm 6 --oem 3',
+                'preprocessing': 'standard',
+                'languages': 'eng+hin',  # Most common languages first
+                'min_chars': 200,
+                'priority': 1
+            },
+            {
+                'name': 'comprehensive',
+                'config': '--psm 6 --oem 3',
+                'preprocessing': 'standard', 
+                'languages': 'eng+hin+mar+guj+ben+tam+tel+kan+mal+ori+pan+asm+urd+san',
+                'min_chars': 150,
+                'priority': 2
+            },
+            {
+                'name': 'table_focused', 
+                'config': '--psm 6 --oem 3 -c preserve_interword_spaces=1',
+                'preprocessing': 'table_aware',
+                'languages': 'eng+hin+mar+guj+ben+tam+tel+kan+mal+ori+pan+asm+urd+san',
+                'min_chars': 100,
+                'priority': 3
+            },
+            {
+                'name': 'fallback',
+                'config': '--psm 4 --oem 3',
+                'preprocessing': 'line_by_line',
+                'languages': 'eng+hin',  # Faster fallback
+                'min_chars': 50,
+                'priority': 4
+            }
+        ]
         
-        # Strategy 2: Table-focused OCR with preserved spacing
-        try:
-            processed_image = self.preprocess_image(image, 'table_aware')
-            text = pytesseract.image_to_string(
-                processed_image,
-                lang=comprehensive_langs,
-                config='--psm 6 --oem 3 -c preserve_interword_spaces=1 -c page_separator=""'
-            )
-            results['table_focused'] = self._post_process_multilingual_text(text)
-            self.logger.debug(f"Table-focused strategy: {len(results['table_focused'])} characters")
-        except Exception as e:
-            self.logger.warning(f"Table-focused strategy failed: {e}")
-            results['table_focused'] = ""
+        best_result = ""
+        best_score = 0
         
-        # Strategy 3: Line-by-line for complex layouts
-        try:
-            processed_image = self.preprocess_image(image, 'line_by_line')
-            text = pytesseract.image_to_string(
-                processed_image,
-                lang=comprehensive_langs,
-                config='--psm 4 --oem 3 -c preserve_interword_spaces=1'
-            )
-            results['line_by_line'] = self._post_process_multilingual_text(text)
-            self.logger.debug(f"Line-by-line strategy: {len(results['line_by_line'])} characters")
-        except Exception as e:
-            self.logger.warning(f"Line-by-line strategy failed: {e}")
-            results['line_by_line'] = ""
+        for strategy in strategies:
+            try:
+                start_time = self._get_time()
+                
+                # Get preprocessed image (cached)
+                processed_image = self.preprocess_image(image, strategy['preprocessing'])
+                
+                # Run OCR with optimized language set
+                text = pytesseract.image_to_string(
+                    processed_image,
+                    lang=strategy['languages'],
+                    config=strategy['config']
+                )
+                
+                # Ultra-fast quality check before expensive post-processing
+                text_length = len(text.strip())
+                if text_length < strategy['min_chars']:
+                    self.logger.debug(f"Strategy '{strategy['name']}': insufficient content ({text_length} chars)")
+                    continue
+                
+                # Quick quality score calculation
+                quick_score = self._ultra_fast_quality_score(text)
+                
+                # Only post-process if it shows promise
+                if quick_score > 100:  # Threshold for worthwhile processing
+                    processed_text = self._post_process_multilingual_text(text)
+                    score = self._calculate_text_quality_score(processed_text)
+                else:
+                    processed_text = text.strip()
+                    score = quick_score
+                
+                processing_time = self._get_time() - start_time
+                self.logger.debug(f"Strategy '{strategy['name']}': {len(processed_text)} chars, score: {score}, time: {processing_time:.2f}s")
+                
+                # Update best result
+                if score > best_score:
+                    best_score = score
+                    best_result = processed_text
+                
+                # Ultra-aggressive early exit for performance
+                if strategy['priority'] == 1 and score > 200:  # Fast strategy with minimal score
+                    self.logger.info(f"Ultra-fast exit: Fast strategy successful (score: {score})")
+                    break
+                elif strategy['priority'] == 2 and score > 300:  # Comprehensive with good score
+                    self.logger.info(f"Early exit: Comprehensive strategy successful (score: {score})")
+                    break
+                    
+            except Exception as e:
+                self.logger.warning(f"Strategy '{strategy['name']}' failed: {e}")
+                continue
         
-        # Strategy 4: Sparse text mode for difficult cases
-        try:
-            processed_image = self.preprocess_image(image, 'standard')
-            text = pytesseract.image_to_string(
-                processed_image,
-                lang=comprehensive_langs,
-                config='--psm 8 --oem 3'  # Treat image as single word
-            )
-            results['sparse_text'] = self._post_process_multilingual_text(text)
-            self.logger.debug(f"Sparse text strategy: {len(results['sparse_text'])} characters")
-        except Exception as e:
-            self.logger.warning(f"Sparse text strategy failed: {e}")
-            results['sparse_text'] = ""
+        if not best_result:
+            self.logger.warning("All optimized strategies failed, trying minimal English fallback...")
+            return self._minimal_english_fallback(image)
         
-        return self._intelligently_combine_results(results)
+        self.logger.info(f"Best result selected with score: {best_score}")
+        return best_result
     
-    def _intelligently_combine_results(self, results):
+    def _ultra_fast_quality_score(self, text: str) -> int:
         """
-        Intelligently combine multiple OCR results focusing on table preservation and completeness
+        Ultra-fast quality scoring for immediate early exit decisions
+        """
+        if not text or len(text.strip()) < 20:
+            return 0
+        
+        score = len(text.strip()) // 2  # Base score (faster than full length)
+        
+        # Ultra-fast indicators (single character checks)
+        if '₹' in text or 'र' in text:  # Currency or Hindi
+            score += 30
+        if any(char.isdigit() for char in text[:100]):  # Numbers in first 100 chars
+            score += 40
+        if 'Bill' in text[:50] or 'बिल' in text[:50]:  # Bill indicators early
+            score += 50
+        
+        return score
+    
+    def _minimal_english_fallback(self, image):
+        """
+        Minimal English-only fallback for absolute worst-case scenarios
+        """
+        try:
+            # Use cached standard preprocessing
+            processed_image = self.preprocess_image(image, 'standard')
+            text = pytesseract.image_to_string(
+                processed_image,
+                lang='eng',  # English only
+                config='--psm 6 --oem 3'  # Simplest, fastest config
+            )
+            return text.strip()  # Skip post-processing for speed
+        except Exception as e:
+            self.logger.error(f"Minimal English fallback failed: {e}")
+            return ""
+    
+    def _calculate_text_quality_score(self, text: str) -> int:
+        """
+        Fast quality scoring for OCR results to enable early exit
         """
         import re
         
-        if not results:
+        if not text or len(text.strip()) < 50:
+            return 0
+        
+        score = len(text.strip())  # Base score on length
+        
+        # Quick bonuses for key indicators (no expensive regex)
+        if 'Bill' in text or 'बिल' in text:
+            score += 50
+        if 'Meter' in text or 'मीटर' in text:
+            score += 50  
+        if 'Customer' in text or 'ग्राहक' in text:
+            score += 30
+        if '₹' in text or 'Rs' in text or 'रु' in text:
+            score += 40
+        
+        # Bonus for numbers (indicates structured data)
+        digit_count = sum(1 for c in text if c.isdigit())
+        score += min(digit_count * 2, 100)  # Cap bonus at 100
+        
+        # Bonus for hyphens (meter numbers, account numbers)
+        hyphen_count = text.count('-')
+        score += min(hyphen_count * 20, 60)  # Cap bonus at 60
+        
+        # Penalty for too many special characters (OCR noise)
+        special_char_ratio = sum(1 for c in text if not c.isalnum() and c not in ' \n\t\r.,()-:') / max(len(text), 1)
+        if special_char_ratio > 0.1:
+            score -= int(special_char_ratio * 100)
+        
+        return max(score, 0)
+    
+    def _fallback_english_extraction(self, image):
+        """
+        Fast English-only fallback when all other strategies fail
+        """
+        try:
+            processed_image = self.preprocess_image(image, 'standard')
+            text = pytesseract.image_to_string(
+                processed_image,
+                lang='eng',  # English only for speed
+                config='--psm 6 --oem 3'
+            )
+            return self._post_process_multilingual_text(text)
+        except Exception as e:
+            self.logger.error(f"English fallback failed: {e}")
             return ""
-        
-        # Filter out empty results
-        valid_results = {k: v for k, v in results.items() if v.strip()}
-        
-        if not valid_results:
-            return ""
-        
-        # Scoring system for result quality
-        scored_results = []
-        for strategy, text in valid_results.items():
-            score = len(text)  # Base score on length
-            
-            # Bonus for table indicators
-            if '|' in text or 'Meter Number' in text or 'मीटर संख्या' in text:
-                score += 200
-            
-            # Bonus for hyphenated numbers (likely meter numbers)
-            hyphen_count = len(re.findall(r'\d+-\d+', text))
-            score += hyphen_count * 100
-            
-            # Bonus for key terminology
-            key_terms = ['Total Unit Consumption', 'Net Consumption', 'RRNO', 'एकण युनिट']
-            for term in key_terms:
-                if term in text:
-                    score += 50
-            
-            scored_results.append((strategy, text, score))
-        
-        # Select best result based on score
-        best_strategy, best_text, best_score = max(scored_results, key=lambda x: x[2])
-        
-        # Log results for debugging
-        for strategy, text, score in scored_results:
-            self.logger.info(f"Strategy '{strategy}': {len(text)} chars, score: {score}")
-        
-        self.logger.info(f"Selected best result from '{best_strategy}' strategy (score: {best_score})")
-        return best_text
-
+    
+    def _get_time(self):
+        """Get current time for performance measurement"""
+        import time
+        return time.time()
+    
     def extract_text(self, image: Image.Image) -> str:
-        """Extract text using enhanced table-aware multi-strategy OCR with comprehensive post-processing."""
-        self.logger.info("Starting enhanced table-aware multi-strategy OCR extraction...")
+        """Optimized text extraction with smart cascading strategies and early exit."""
+        self.logger.info("Starting optimized multi-strategy OCR extraction...")
         
-        # Use enhanced table-aware strategy approach
+        # Clear cache if we're processing a new image
+        current_hash = self._get_image_hash(image)
+        if self._last_image_hash != current_hash:
+            self._preprocessed_cache.clear()
+            self._last_image_hash = current_hash
+        
+        start_time = self._get_time()
+        
+        # Use optimized table-aware strategy approach
         best_text = self._extract_with_table_aware_strategies(image)
         
-        # Fallback to English if all comprehensive attempts fail
+        # Fast English fallback only if comprehensive extraction failed
         if not best_text or len(best_text) < 50:
-            try:
-                self.logger.warning("Multi-language extraction insufficient, trying English fallback...")
-                processed_image = self.preprocess_image(image, 'standard')
-                text = pytesseract.image_to_string(
-                    processed_image,
-                    lang='eng',
-                    config='--psm 6 --oem 3 -c preserve_interword_spaces=1'
-                )
-                best_text = self._post_process_multilingual_text(text)
-                self.logger.info(f"English fallback result: {len(best_text)} characters")
-            except Exception as e:
-                self.logger.error(f"English fallback failed: {e}")
-                return ""
+            self.logger.warning("Multi-language extraction insufficient, trying fast English fallback...")
+            best_text = self._fallback_english_extraction(image)
         
-        self.logger.info(f"Final OCR result: {len(best_text)} characters extracted")
+        total_time = self._get_time() - start_time
+        self.logger.info(f"OCR completed in {total_time:.2f}s: {len(best_text)} characters extracted")
         return best_text
     
     def validate_file(self, file_path: str) -> Path:
@@ -286,51 +377,67 @@ class OCRExtractor:
         return path
     
     def preprocess_image(self, image: Image.Image, strategy: str = 'standard') -> Image.Image:
-        """Preprocess image to improve OCR accuracy with strategy-specific optimizations."""
+        """
+        Optimized preprocessing with caching to avoid redundant work
+        """
+        # Create cache key
+        image_hash = self._get_image_hash(image)
+        cache_key = f"{image_hash}_{strategy}"
+        
+        # Check cache first
+        if cache_key in self._preprocessed_cache:
+            self.logger.debug(f"Using cached preprocessing for {strategy}")
+            return self._preprocessed_cache[cache_key]
+        
         self.logger.debug(f"Preprocessing image for {strategy} OCR strategy...")
         
         # Convert to grayscale if not already
         if image.mode != 'L':
-            image = image.convert('L')
+            processed_image = image.convert('L')
+        else:
+            processed_image = image.copy()
         
-        # Strategy-specific preprocessing
+        # Strategy-specific preprocessing (optimized)
         if strategy == 'table_aware':
-            # Stronger contrast enhancement for table borders
-            enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(2.0)
+            # Stronger contrast for table borders
+            enhancer = ImageEnhance.Contrast(processed_image)
+            processed_image = enhancer.enhance(2.0)
             
-            # Moderate sharpness to preserve table structure
-            enhancer = ImageEnhance.Sharpness(image)
-            image = enhancer.enhance(1.5)
+            # Moderate sharpness 
+            enhancer = ImageEnhance.Sharpness(processed_image)
+            processed_image = enhancer.enhance(1.5)
             
-            # Minimal blur to preserve table lines
-            image = image.filter(ImageFilter.GaussianBlur(radius=0.3))
+            # Minimal blur
+            processed_image = processed_image.filter(ImageFilter.GaussianBlur(radius=0.3))
             
         elif strategy == 'line_by_line':
-            # High contrast for individual line processing
-            enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(2.2)
+            # High contrast and sharpness for individual lines
+            enhancer = ImageEnhance.Contrast(processed_image)
+            processed_image = enhancer.enhance(2.2)
             
-            # High sharpness for character clarity
-            enhancer = ImageEnhance.Sharpness(image)
-            image = enhancer.enhance(2.5)
+            enhancer = ImageEnhance.Sharpness(processed_image)
+            processed_image = enhancer.enhance(2.5)
             
-            # Very light blur to reduce noise
-            image = image.filter(ImageFilter.GaussianBlur(radius=0.2))
+            processed_image = processed_image.filter(ImageFilter.GaussianBlur(radius=0.2))
             
-        else:  # standard strategy
-            # Balanced enhancement for general text
-            enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(1.5)
+        else:  # standard strategy (fastest, most common)
+            # Balanced enhancement
+            enhancer = ImageEnhance.Contrast(processed_image)
+            processed_image = enhancer.enhance(1.5)
             
-            # Enhanced sharpness
-            enhancer = ImageEnhance.Sharpness(image)
-            image = enhancer.enhance(2.0)
+            enhancer = ImageEnhance.Sharpness(processed_image)
+            processed_image = enhancer.enhance(2.0)
             
-            # Light gaussian blur to reduce noise
-            image = image.filter(ImageFilter.GaussianBlur(radius=0.5))
+            processed_image = processed_image.filter(ImageFilter.GaussianBlur(radius=0.5))
         
-        return image
+        # Cache the result (limit cache size to prevent memory issues)
+        if len(self._preprocessed_cache) > 10:  # Limit cache size
+            # Remove oldest entry
+            oldest_key = next(iter(self._preprocessed_cache))
+            del self._preprocessed_cache[oldest_key]
+        
+        self._preprocessed_cache[cache_key] = processed_image
+        return processed_image
     
     def pdf_to_images(self, pdf_path: Path) -> List[Image.Image]:
         """Convert PDF pages to images."""
