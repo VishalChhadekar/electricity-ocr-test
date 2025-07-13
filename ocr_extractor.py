@@ -31,11 +31,11 @@ class OCRExtractor:
     SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.pdf'}
 
     def __init__(self):
-        """Initialize the optimized OCR extractor."""
+        """Initialize the reliable OCR extractor."""
         self.setup_logging()
         
-        # Performance optimizations
-        self._preprocessed_cache = {}  # Cache preprocessed images
+        # Remove aggressive caching that can cause inconsistency
+        self._preprocessed_cache = {}  # Keep minimal cache
         self._last_image_hash = None
         
     def setup_logging(self):
@@ -149,20 +149,12 @@ class OCRExtractor:
         # Strategy definitions with optimized language sets
         strategies = [
             {
-                'name': 'standard_fast',
+                'name': 'comprehensive_primary',
                 'config': '--psm 6 --oem 3',
                 'preprocessing': 'standard',
-                'languages': 'eng+hin',  # Most common languages first
-                'min_chars': 200,
-                'priority': 1
-            },
-            {
-                'name': 'comprehensive',
-                'config': '--psm 6 --oem 3',
-                'preprocessing': 'standard', 
                 'languages': 'eng+hin+mar+guj+ben+tam+tel+kan+mal+ori+pan+asm+urd+san',
                 'min_chars': 150,
-                'priority': 2
+                'priority': 1
             },
             {
                 'name': 'table_focused', 
@@ -170,15 +162,15 @@ class OCRExtractor:
                 'preprocessing': 'table_aware',
                 'languages': 'eng+hin+mar+guj+ben+tam+tel+kan+mal+ori+pan+asm+urd+san',
                 'min_chars': 100,
-                'priority': 3
+                'priority': 2
             },
             {
-                'name': 'fallback',
+                'name': 'fallback_psm4',
                 'config': '--psm 4 --oem 3',
                 'preprocessing': 'line_by_line',
-                'languages': 'eng+hin',  # Faster fallback
+                'languages': 'eng+hin+mar+guj+ben+tam+tel+kan+mal+ori+pan+asm+urd+san',
                 'min_chars': 50,
-                'priority': 4
+                'priority': 3
             }
         ]
         
@@ -192,44 +184,35 @@ class OCRExtractor:
                 # Get preprocessed image (cached)
                 processed_image = self.preprocess_image(image, strategy['preprocessing'])
                 
-                # Run OCR with optimized language set
+                # Run OCR with full language set
                 text = pytesseract.image_to_string(
                     processed_image,
                     lang=strategy['languages'],
                     config=strategy['config']
                 )
                 
-                # Ultra-fast quality check before expensive post-processing
+                # Quality check
                 text_length = len(text.strip())
                 if text_length < strategy['min_chars']:
                     self.logger.debug(f"Strategy '{strategy['name']}': insufficient content ({text_length} chars)")
                     continue
                 
-                # Quick quality score calculation
-                quick_score = self._ultra_fast_quality_score(text)
-                
-                # Only post-process if it shows promise
-                if quick_score > 100:  # Threshold for worthwhile processing
-                    processed_text = self._post_process_multilingual_text(text)
-                    score = self._calculate_text_quality_score(processed_text)
-                else:
-                    processed_text = text.strip()
-                    score = quick_score
+                # Full quality assessment for reliability
+                processed_text = self._post_process_multilingual_text(text)
+                score = self._calculate_text_quality_score(processed_text)
                 
                 processing_time = self._get_time() - start_time
                 self.logger.debug(f"Strategy '{strategy['name']}': {len(processed_text)} chars, score: {score}, time: {processing_time:.2f}s")
                 
-                # Update best result
+                # Update best result if this is better
                 if score > best_score:
                     best_score = score
                     best_result = processed_text
+                    self.logger.info(f"New best result from '{strategy['name']}' with score: {score}")
                 
-                # Ultra-aggressive early exit for performance
-                if strategy['priority'] == 1 and score > 200:  # Fast strategy with minimal score
-                    self.logger.info(f"Ultra-fast exit: Fast strategy successful (score: {score})")
-                    break
-                elif strategy['priority'] == 2 and score > 300:  # Comprehensive with good score
-                    self.logger.info(f"Early exit: Comprehensive strategy successful (score: {score})")
+                # Only exit early if we have a very high-quality result
+                if score > 500 and strategy['priority'] == 1:
+                    self.logger.info(f"High-quality result achieved with primary strategy (score: {score})")
                     break
                     
             except Exception as e:
@@ -237,10 +220,10 @@ class OCRExtractor:
                 continue
         
         if not best_result:
-            self.logger.warning("All optimized strategies failed, trying minimal English fallback...")
+            self.logger.warning("All strategies failed, trying minimal English fallback...")
             return self._minimal_english_fallback(image)
         
-        self.logger.info(f"Best result selected with score: {best_score}")
+        self.logger.info(f"Final best result selected with score: {best_score}")
         return best_result
     
     def _ultra_fast_quality_score(self, text: str) -> int:
@@ -378,13 +361,18 @@ class OCRExtractor:
     
     def preprocess_image(self, image: Image.Image, strategy: str = 'standard') -> Image.Image:
         """
-        Optimized preprocessing with caching to avoid redundant work
+        Reliable preprocessing with minimal caching to ensure consistency
         """
+        # Clear cache periodically to prevent stale results
+        if len(self._preprocessed_cache) > 5:
+            self._preprocessed_cache.clear()
+            self.logger.debug("Cleared preprocessing cache for reliability")
+        
         # Create cache key
         image_hash = self._get_image_hash(image)
         cache_key = f"{image_hash}_{strategy}"
         
-        # Check cache first
+        # Check cache but limit its use
         if cache_key in self._preprocessed_cache:
             self.logger.debug(f"Using cached preprocessing for {strategy}")
             return self._preprocessed_cache[cache_key]
